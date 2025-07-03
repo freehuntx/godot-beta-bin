@@ -1,8 +1,9 @@
 [Desktop Entry]
-Name=Godot
-Comment=Application for making games
-Exec=/usr/bin/godot-beta %U
+Name=Godot Beta
+Comment=Multi-platform 2D and 3D game engine
+Exec=/usr/bin/godot-beta
 Icon=godot
 Terminal=false
 Type=Application
-Categories=Utility;Game;
+Categories=Development;Game;IDE;
+StartupWMClass=Godot
