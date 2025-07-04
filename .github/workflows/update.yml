@@ -6,8 +6,13 @@ on:
   workflow_dispatch:  # Manual trigger
 
 jobs:
-  update:
+  check-and-update:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true  # Stop all jobs if any fails
+      matrix:
+        os: [ubuntu-latest]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,7 +25,7 @@ jobs:
           # Add error handling and debugging
           RESPONSE=$(curl -s https://api.github.com/repos/godotengine/godot-builds/releases)
           echo "API Response (first 500 chars):"
-          echo "$RESPONSE" | head -c 500
+          echo "$RESPONSE" | { head -c 500 || true; }
 
           # Check if response is valid JSON
           if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
