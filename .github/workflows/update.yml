@@ -17,9 +17,32 @@ jobs:
       - name: Check for new Godot beta
         id: check
         run: |
-          LATEST=$(curl -s https://api.github.com/repos/godotengine/godot-builds/releases | \
-            jq -r '.[] | select(.tag_name | contains("beta")) | .tag_name' | \
-            head -1)
+          # Add error handling and debugging
+          RESPONSE=$(curl -s https://api.github.com/repos/godotengine/godot-builds/releases)
+          echo "API Response (first 500 chars):"
+          echo "$RESPONSE" | head -c 500
+
+          # Check if response is valid JSON
+          if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
+            echo "Error: Invalid JSON response from GitHub API"
+            exit 1
+          fi
+    
+          # Extract latest beta version with better error handling
+          LATEST=$(echo "$RESPONSE" | jq -r '
+            [.[] | select(.tag_name | test("beta")) | .tag_name] | 
+            sort_by(split("beta")[1] | tonumber) | 
+            last // empty
+          ')
+
+          if [ -z "$LATEST" ]; then
+            echo "No beta releases found"
+            exit 1
+          fi
+
+          echo "Latest beta version: $LATEST"
+          echo "LATEST_VERSION=$LATEST" >> $GITHUB_ENV
+
           VERSION=$(echo $LATEST | sed 's/-//g' | sed 's/^v//')
           CURRENT_VERSION=$(grep '^pkgver=' PKGBUILD | cut -d'=' -f2)
           echo "latest_version=$VERSION" >> $GITHUB_OUTPUT
