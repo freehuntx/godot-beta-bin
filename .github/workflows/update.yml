@@ -21,7 +21,7 @@ jobs:
       - name: Check for new Godot beta
         id: check
         run: |
-          set -e  # Exit immediately if any command fails
+          set -euo pipefail  # Exit immediately if any command fails
 
           # Add error handling and debugging
           RESPONSE=$(curl -s https://api.github.com/repos/godotengine/godot-builds/releases)
@@ -33,11 +33,9 @@ jobs:
           fi
     
           # Extract latest beta version with better error handling
-          LATEST=$(echo "$RESPONSE" | jq -r '
-            [.[] | select(.tag_name | test("beta")) | .tag_name] | 
-            sort_by(split("beta")[1] | tonumber) | 
-            last // empty
-          ')
+          LATEST=$(echo "$RESPONSE" | \
+            jq -r '.[] | select(.tag_name | contains("beta")) | .tag_name' | \
+            head -1)
 
           if [ -z "$LATEST" ]; then
             echo "No beta releases found"
@@ -61,7 +59,7 @@ jobs:
           fi
 
       - name: Generate PKGBUILD from template
-        if: steps.check.outputs.needs_update == 'true'
+        if: success() && steps.check.outputs.needs_update == 'true'
         run: |
           VERSION="${{ steps.check.outputs.latest_version }}"
           TAG="${{ steps.check.outputs.latest_tag }}"
@@ -74,13 +72,13 @@ jobs:
           sed -i "s/{{MAJOR_VERSION}}/$MAJOR_VERSION/g" PKGBUILD
 
       - name: Generate .SRCINFO
-        if: steps.check.outputs.needs_update == 'true'
+        if: success() && steps.check.outputs.needs_update == 'true'
         uses: datakrama/archlinux-package-action@v2
         with:
           srcinfo: true
 
       - name: Commit changes
-        if: steps.check.outputs.needs_update == 'true'
+        if: success() && steps.check.outputs.needs_update == 'true'
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
@@ -88,11 +86,11 @@ jobs:
           git commit -m "Update to Godot ${{ steps.check.outputs.latest_version }}" || echo "No changes"
 
       - name: Push to GitHub
-        if: steps.check.outputs.needs_update == 'true'
+        if: success() && steps.check.outputs.needs_update == 'true'
         run: git push
 
       - name: Push to AUR
-        if: steps.check.outputs.needs_update == 'true'
+        if: success() && steps.check.outputs.needs_update == 'true'
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
