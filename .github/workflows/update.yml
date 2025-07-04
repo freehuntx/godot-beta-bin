@@ -97,15 +97,50 @@ jobs:
         if: success() && steps.check.outputs.needs_update == 'true'
         run: git push
 
+      - name: Setup SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur_key
+          chmod 600 ~/.ssh/aur_key
+          
+          # Add AUR host to known_hosts
+          ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts
+          
+          # Configure git to use SSH key for AUR
+          git config --global url."ssh://aur@aur.archlinux.org/".insteadOf "https://aur.archlinux.org/"
+
       - name: Push to AUR
         if: success() && steps.check.outputs.needs_update == 'true'
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
-          mkdir -p ~/.ssh
-          echo "$AUR_SSH_KEY" > ~/.ssh/aur_key
-          chmod 600 ~/.ssh/aur_key
-          git remote add aur ssh://aur@aur.archlinux.org/godot-beta-bin.git || true
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=no" git fetch aur master
-          git rebase aur/master
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=no" git push aur HEAD:master
+          # Setup git
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+    
+          # Clone AUR repo using SSH key
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=no" \
+          git clone ssh://aur@aur.archlinux.org/godot-beta-bin aur-repo
+    
+          cd aur-repo
+
+          # Copy only AUR-required files from your repo root
+          cp ../PKGBUILD .
+          cp ../.SRCINFO .
+          cp ../.gitignore . 2>/dev/null || true
+    
+          # Copy any patch files if they exist
+          cp ../*.patch . 2>/dev/null || true
+          cp ../*.diff . 2>/dev/null || true
+    
+          # Check if there are changes
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to push"
+            exit 0
+          fi
+
+          # Commit and push with SSH key
+          git add .
+          git commit -m "Update from GitHub: $(date)"
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=no" \
+          git push origin master
