@@ -1,0 +1,78 @@
+name: Update Godot Beta Package
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily check
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Check for new Godot beta
+        id: check
+        run: |
+          LATEST=$(curl -s https://api.github.com/repos/godotengine/godot-builds/releases | \
+            jq -r '.[] | select(.tag_name | contains("beta")) | .tag_name' | \
+            head -1)
+          VERSION=$(echo $LATEST | sed 's/-//g' | sed 's/^v//')
+          CURRENT_VERSION=$(grep '^pkgver=' PKGBUILD | cut -d'=' -f2)
+          echo "latest_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "latest_tag=$LATEST" >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          
+          # Check if update is needed
+          if [ "$VERSION" != "$CURRENT_VERSION" ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate PKGBUILD from template
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          VERSION="${{ steps.check.outputs.latest_version }}"
+          TAG="${{ steps.check.outputs.latest_tag }}"
+          MAJOR_VERSION=$(echo "$VERSION" | cut -d'.' -f1-2)
+          
+          # Generate PKGBUILD from template
+          cp PKGBUILD.template PKGBUILD
+          sed -i "s/{{VERSION}}/$VERSION/g" PKGBUILD
+          sed -i "s/{{TAG}}/$TAG/g" PKGBUILD
+          sed -i "s/{{MAJOR_VERSION}}/$MAJOR_VERSION/g" PKGBUILD
+
+      - name: Generate .SRCINFO
+        if: steps.check.outputs.needs_update == 'true'
+        uses: datakrama/archlinux-package-action@v2
+        with:
+          srcinfo: true
+
+      - name: Commit changes
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add PKGBUILD .SRCINFO
+          git commit -m "Update to Godot ${{ steps.check.outputs.latest_version }}" || echo "No changes"
+
+      - name: Push to GitHub
+        if: steps.check.outputs.needs_update == 'true'
+        run: git push
+
+      - name: Push to AUR
+        if: steps.check.outputs.needs_update == 'true'
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$AUR_SSH_KEY" > ~/.ssh/aur_key
+          chmod 600 ~/.ssh/aur_key
+          git remote add aur ssh://aur@aur.archlinux.org/godot-beta-bin.git || true
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=no" git fetch aur master
+          git rebase aur/master
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=no" git push aur HEAD:master
