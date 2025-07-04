@@ -82,6 +82,7 @@ jobs:
         if: success() && steps.check.outputs.needs_update == 'true'
         uses: heyhusen/archlinux-package-action@v2
         with:
+          path: . # This makes sure all files in the current directory are included
           srcinfo: true
 
       - name: Commit changes
