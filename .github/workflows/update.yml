@@ -22,6 +22,7 @@ jobs:
         id: check
         run: |
           set -euo pipefail  # Exit immediately if any command fails
+          ls -lah
 
           # Add error handling and debugging
           RESPONSE=$(curl -s https://api.github.com/repos/godotengine/godot-builds/releases)
@@ -61,6 +62,7 @@ jobs:
       - name: Generate PKGBUILD from template
         if: success() && steps.check.outputs.needs_update == 'true'
         run: |
+          ls -lah
           VERSION="${{ steps.check.outputs.latest_version }}"
           TAG="${{ steps.check.outputs.latest_tag }}"
           MAJOR_VERSION=$(echo "$VERSION" | cut -d'.' -f1-2)
@@ -70,10 +72,12 @@ jobs:
           sed -i "s/{{VERSION}}/$VERSION/g" PKGBUILD
           sed -i "s/{{TAG}}/$TAG/g" PKGBUILD
           sed -i "s/{{MAJOR_VERSION}}/$MAJOR_VERSION/g" PKGBUILD
+          echo "PKGBUILD generated for Godot $VERSION"
+          cat PKGBUILD
 
       - name: Generate .SRCINFO
         if: success() && steps.check.outputs.needs_update == 'true'
-        uses: datakrama/archlinux-package-action@v2
+        uses: heyhusen/archlinux-package-action@v2
         with:
           srcinfo: true
 
