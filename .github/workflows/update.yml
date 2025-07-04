@@ -25,11 +25,12 @@ jobs:
           ls -lah
 
           # Add error handling and debugging
-          RESPONSE=$(curl -s https://api.github.com/repos/godotengine/godot-builds/releases)
+          RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            https://api.github.com/repos/godotengine/godot-builds/releases)
 
-          # Check if response is valid JSON
-          if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
-            echo "Error: Invalid JSON response from GitHub API"
+          # Check if response is an array (starts with [), otherwise print error and exit
+          if [[ "$RESPONSE" != \[* ]]; then
+            echo "Error fetching releases: $RESPONSE"
             exit 1
           fi
     
@@ -58,6 +59,8 @@ jobs:
           else
             echo "needs_update=false" >> $GITHUB_OUTPUT
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate PKGBUILD from template
         if: success() && steps.check.outputs.needs_update == 'true'
