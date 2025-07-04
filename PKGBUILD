@@ -8,8 +8,8 @@ license=('MIT')
 depends=('glibc')
 source=("https://github.com/godotengine/godot-builds/releases/download/4.5-beta1/Godot_v4.5-beta1_linux.x86_64.zip"
         "godot-beta.desktop")
-sha256sums=('SKIP'
-            'SKIP')  # You can replace SKIP with the real checksum if you want
+sha256sums=('SKIP'  # or actual checksum for the zip
+            'SKIP') # or actual checksum for the desktop file
 
 package() {
     install -dm755 "$pkgdir/opt/godot-beta"
