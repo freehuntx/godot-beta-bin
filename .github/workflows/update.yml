@@ -1,18 +1,17 @@
 name: Update Godot Beta Package
 
+# Run daily, manual or on push
 on:
   schedule:
     - cron: '0 0 * * *'  # Daily check
   workflow_dispatch:  # Manual trigger
+  push:
+    branches:
+      - master
 
 jobs:
-  check-and-update:
+  update:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true  # Stop all jobs if any fails
-      matrix:
-        os: [ubuntu-latest]
-
     steps:
       - uses: actions/checkout@v4
 
@@ -22,10 +21,10 @@ jobs:
       - name: Check for new Godot beta
         id: check
         run: |
+          set -e  # Exit immediately if any command fails
+
           # Add error handling and debugging
           RESPONSE=$(curl -s https://api.github.com/repos/godotengine/godot-builds/releases)
-          echo "API Response (first 500 chars):"
-          echo "$RESPONSE" | { head -c 500 || true; }
 
           # Check if response is valid JSON
           if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
